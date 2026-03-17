@@ -1,0 +1,15 @@
+{
+  "buildCommand": "cd gods-eye && npm install --legacy-peer-deps && npm run build",
+  "outputDirectory": "gods-eye/dist",
+  "installCommand": "echo 'install handled by buildCommand'",
+  "framework": null,
+  "headers": [
+    {
+      "source": "/data/(.*)",
+      "headers": [
+        { "key": "Content-Type", "value": "application/octet-stream" },
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+}
