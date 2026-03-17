@@ -648,21 +648,61 @@ function UploadPanel({ onUploadDone }: { onUploadDone?: () => void }) {
   const [status, setStatus]     = useState<UploadState>('idle');
   const [message, setMessage]   = useState('');
   const [dragging, setDragging] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef   = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
 
   if (!API_URL) return null;
 
   const canUpload = files.length > 0 && status !== 'uploading';
 
-  const addFiles = (incoming: FileList | null) => {
-    if (!incoming) return;
-    const arr = Array.from(incoming);
+  const addFiles = (incoming: File[]) => {
+    if (!incoming.length) return;
     setFiles((prev) => {
       const existing = new Set(prev.map((f) => f.name));
-      return [...prev, ...arr.filter((f) => !existing.has(f.name))];
+      return [...prev, ...incoming.filter((f) => !existing.has(f.name))];
     });
     setStatus('idle');
     setMessage('');
+  };
+
+  // Recursively read all files from a FileSystemEntry (handles nested folders).
+  const readEntry = (entry: FileSystemEntry): Promise<File[]> => {
+    if (entry.isFile) {
+      return new Promise((resolve) => {
+        (entry as FileSystemFileEntry).file((f) => resolve([f]), () => resolve([]));
+      });
+    }
+    if (entry.isDirectory) {
+      const reader = (entry as FileSystemDirectoryEntry).createReader();
+      return new Promise((resolve) => {
+        const collected: File[] = [];
+        const readBatch = () => {
+          reader.readEntries(async (entries) => {
+            if (!entries.length) { resolve(collected); return; }
+            const nested = await Promise.all(entries.map(readEntry));
+            collected.push(...nested.flat());
+            readBatch(); // readEntries may return partial batches
+          }, () => resolve(collected));
+        };
+        readBatch();
+      });
+    }
+    return Promise.resolve([]);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const { items, files: dtFiles } = e.dataTransfer;
+    if (items?.length) {
+      const entries = Array.from(items)
+        .map((item) => item.webkitGetAsEntry())
+        .filter((entry): entry is FileSystemEntry => entry !== null);
+      const nested = await Promise.all(entries.map(readEntry));
+      addFiles(nested.flat());
+    } else {
+      addFiles(Array.from(dtFiles));
+    }
   };
 
   const removeFile = (name: string) => setFiles((prev) => prev.filter((f) => f.name !== name));
@@ -732,31 +772,59 @@ function UploadPanel({ onUploadDone }: { onUploadDone?: () => void }) {
       {open && (
         <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 11, color: TEXT_MUTED, lineHeight: 1.6 }}>
-            Drop a folder of{' '}
-            <code style={{ color: ACCENT, fontSize: 10 }}>.nakama-0</code> files or click to pick
-            multiple files.{' '}
+            Drop{' '}
+            <code style={{ color: ACCENT, fontSize: 10 }}>.nakama-0</code> files <em>or</em> an
+            entire folder onto the zone below, or use the buttons to browse.{' '}
             <strong style={{ color: TEXT_MAIN }}>Dates are detected automatically</strong>{' '}
             from the data \u2014 no manual input needed.
           </div>
 
           <div
-            onClick={() => fileRef.current?.click()}
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }}
+            onDrop={handleDrop}
             style={{
               border: `2px dashed ${dragging ? ACCENT : BORDER}`,
               borderRadius: 8, padding: '14px 10px', textAlign: 'center',
-              cursor: 'pointer', transition: 'border-color 0.15s',
+              transition: 'border-color 0.15s',
               background: dragging ? 'rgba(56,189,248,0.05)' : 'transparent',
             }}
           >
             <div style={{ fontSize: 20, marginBottom: 4 }}>&#128193;</div>
             <div style={{ fontSize: 11, color: dragging ? ACCENT : TEXT_MUTED }}>
               {files.length > 0
-                ? `${files.length} file${files.length > 1 ? 's' : ''} selected \u2014 click or drop more`
-                : 'Click or drag-and-drop files here'}
+                ? `${files.length} file${files.length > 1 ? 's' : ''} queued \u2014 drop more files or a folder`
+                : 'Drag & drop files or a folder here'}
             </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={() => fileRef.current?.click()}
+              style={{
+                flex: 1, background: 'none', border: `1px solid ${BORDER}`,
+                borderRadius: 6, color: TEXT_MUTED, cursor: 'pointer',
+                padding: '5px 8px', fontSize: 11, fontWeight: 600,
+                transition: 'border-color 0.15s, color 0.15s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT_MUTED; }}
+            >
+              Select Files
+            </button>
+            <button
+              onClick={() => folderRef.current?.click()}
+              style={{
+                flex: 1, background: 'none', border: `1px solid ${BORDER}`,
+                borderRadius: 6, color: TEXT_MUTED, cursor: 'pointer',
+                padding: '5px 8px', fontSize: 11, fontWeight: 600,
+                transition: 'border-color 0.15s, color 0.15s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT_MUTED; }}
+            >
+              Select Folder
+            </button>
           </div>
 
           <input
@@ -764,7 +832,16 @@ function UploadPanel({ onUploadDone }: { onUploadDone?: () => void }) {
             type="file"
             multiple
             style={{ display: 'none' }}
-            onChange={(e) => addFiles(e.target.files)}
+            onChange={(e) => addFiles(Array.from(e.target.files ?? []))}
+          />
+          <input
+            ref={folderRef}
+            type="file"
+            multiple
+            style={{ display: 'none' }}
+            // @ts-ignore – webkitdirectory is not in React's typings but is widely supported
+            webkitdirectory=""
+            onChange={(e) => addFiles(Array.from(e.target.files ?? []))}
           />
 
           {files.length > 0 && (
