@@ -174,7 +174,7 @@ function App() {
   /* Load metadata — from Supabase Storage if configured, else static file */
   useEffect(() => {
     const metaUrl = SUPABASE_URL
-      ? `${SUPABASE_URL}/storage/v1/object/public/parquet/metadata.json`
+      ? `${SUPABASE_URL}/storage/v1/object/public/parquets/metadata.json`
       : '/metadata.json';
     fetch(metaUrl)
       .then((r) => r.json())

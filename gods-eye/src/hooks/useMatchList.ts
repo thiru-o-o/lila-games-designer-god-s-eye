@@ -42,7 +42,7 @@ export function useMatchList(
 
     const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, '');
     const base = supabaseUrl
-      ? `${supabaseUrl}/storage/v1/object/public/parquet`
+      ? `${supabaseUrl}/storage/v1/object/public/parquets`
       : window.location.origin;
     const fileUrls = dates.map((d) => `'${base}/data/${mapId}/${d}.parquet'`);
     const parquetArg = fileUrls.length === 1

@@ -1,6 +1,6 @@
 """
 One-time migration script: upload existing Parquet files + metadata.json
-to a Supabase Storage public bucket named 'parquet'.
+to a Supabase Storage public bucket named 'parquets'.
 
 Usage:
     pip install requests
@@ -26,12 +26,34 @@ except ImportError:
 # ---------------------------------------------------------------------------
 SUPABASE_URL         = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
-BUCKET               = "parquet"
+BUCKET               = "parquets"
 
 # Paths relative to the project root (d:\player_data)
 GODS_EYE_DIR = Path(__file__).parent.parent / "gods-eye"
 DATA_DIR     = GODS_EYE_DIR / "public" / "data"
 METADATA_FILE = GODS_EYE_DIR / "public" / "metadata.json"
+
+
+def ensure_bucket_exists() -> bool:
+    """Create the bucket if it does not exist. Requires service_role key."""
+    url = f"{SUPABASE_URL}/storage/v1/bucket"
+    headers = {
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Content-Type": "application/json",
+    }
+    # id and name both set so Supabase accepts the bucket
+    payload = {"id": BUCKET, "name": BUCKET, "public": True}
+    resp = requests.post(url, headers=headers, json=payload, timeout=30)
+    if resp.status_code in (200, 201):
+        print(f"  Created bucket '{BUCKET}' (public).")
+        return True
+    if resp.status_code == 409 or "already exists" in resp.text.lower():
+        print(f"  Bucket '{BUCKET}' already exists.")
+        return True
+    # Hosted Supabase may not expose bucket create via REST; bucket might need to be created in Dashboard
+    print(f"  Could not create bucket via API: {resp.status_code} — {resp.text[:200]}")
+    print(f"  Create the bucket in Supabase Dashboard: Storage → New bucket → name '{BUCKET}', Public ON.")
+    return False
 
 
 def upload_file(local_path: Path, storage_path: str) -> bool:
@@ -73,6 +95,11 @@ def main():
     print(f"  Bucket : {BUCKET}")
     print(f"  Project: {SUPABASE_URL}")
     print("=" * 60)
+
+    print("\n[1/2] Ensuring bucket exists...")
+    if not ensure_bucket_exists():
+        print("Create the bucket manually in Supabase: Storage → New bucket → name 'parquet', Public ON.")
+        sys.exit(1)
 
     ok = err = 0
 

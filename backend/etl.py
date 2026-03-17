@@ -73,7 +73,7 @@ async def run_etl(
     date_str: str,
     supabase_url: str,
     service_key: str,
-    bucket: str = "parquet",
+    bucket: str = "parquets",
 ) -> dict:
     """
     Full ETL pipeline for a single uploaded .nakama-0 file.

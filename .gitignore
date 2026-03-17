@@ -25,5 +25,9 @@ backend/.env
 # Raw game data (large binary files — process with prepare_data.py)
 player_data/
 
+# Duplicate output from running ETL from wrong directory
+# Canonical location is gods-eye/public/
+public/
+
 # Logs
 *.log

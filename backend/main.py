@@ -30,7 +30,7 @@ from etl import run_etl
 # ---------------------------------------------------------------------------
 SUPABASE_URL: str = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_KEY: str = os.environ.get("SUPABASE_SERVICE_KEY", "")
-BUCKET = "parquet"
+BUCKET = "parquets"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

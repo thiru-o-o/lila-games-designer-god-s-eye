@@ -17,7 +17,7 @@ and identify dangerous zones and loot hotspots using interactive heatmaps.
 │     │ REST API calls               │ public bucket URLs             │
 │     ▼                              ▼                                │
 │  Supabase Postgres          Supabase Storage                        │
-│  (saved_moments)            (parquet/data/*/*.parquet)              │
+│  (saved_moments)            (parquets/data/*/*.parquet)              │
 │                                                                     │
 │  ◄── new raw files ──── FastAPI backend (Render) ◄── ETL upload    │
 └─────────────────────────────────────────────────────────────────────┘
@@ -72,8 +72,8 @@ The ETL script:
 
 ```
 scripts/upload_to_supabase.py
-  ─► gods-eye/public/data/**/*.parquet  →  Supabase Storage: parquet/data/*
-  ─► gods-eye/public/metadata.json      →  Supabase Storage: parquet/metadata.json
+  ─► gods-eye/public/data/**/*.parquet  →  Supabase Storage: parquets/data/*
+  ─► gods-eye/public/metadata.json      →  Supabase Storage: parquets/metadata.json
 ```
 
 Run once after creating the Supabase project:
@@ -266,7 +266,7 @@ SUPABASE_SERVICE_KEY  <service-role-key>
 
 1. Create a new project at [supabase.com](https://supabase.com).
 2. Run `supabase/migrations/001_saved_moments.sql` in the SQL editor.
-3. Create a **Storage bucket** named `parquet` with **Public** access.
+3. Create a **Storage bucket** named `parquets` with **Public** access.
 4. Run the migration script to upload existing files:
    ```bash
    export SUPABASE_URL=https://<project>.supabase.co
