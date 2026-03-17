@@ -4,22 +4,26 @@ God's Eye — FastAPI backend
 Endpoints:
   GET  /health                  — liveness probe
   GET  /api/metadata            — returns metadata.json from Supabase Storage
-  POST /api/upload              — accepts a .nakama-0 file, runs ETL, uploads to Supabase
-  GET  /api/moments             — list all saved moments from Supabase Postgres
+  POST /api/upload              — accepts one or more .nakama-0 files, runs ETL
+  GET  /api/moments             — list all saved moments (Supabase Postgres)
   POST /api/moments             — create a saved moment
   DELETE /api/moments/{id}      — delete a saved moment by UUID
 
+The date for each file is derived automatically from the timestamps inside
+the data — the user does not need to supply a date.
+
 All Supabase interactions use the service-role key (server-side only).
-CORS is enabled for all origins to support Vercel frontend.
+CORS is enabled for all origins to support the Vercel frontend.
 """
 
+import asyncio
 import logging
 import os
-from typing import Any, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 import httpx
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -107,39 +111,57 @@ async def get_metadata() -> Any:
 
 
 @app.post("/api/upload")
-async def upload_file(
-    file: UploadFile = File(...),
-    date: str = Form(..., description="ISO date the file belongs to, e.g. 2026-02-15"),
+async def upload_files(
+    files: List[UploadFile] = File(..., description="One or more .nakama-0 Parquet files"),
 ) -> dict:
     """
-    Accept a .nakama-0 Parquet file, run ETL, and store results in Supabase Storage.
+    Accept one or more .nakama-0 Parquet files, run ETL on each, and store
+    results in Supabase Storage. The date is derived automatically from the
+    data — no date parameter needed.
 
-    Form fields:
-      file   — the .nakama-0 file
-      date   — YYYY-MM-DD date string
+    Files from the same map+date are merged together, so you can upload an
+    entire folder of files in one request.
     """
     _check_config()
 
-    raw_bytes = await file.read()
-    if not raw_bytes:
-        raise HTTPException(status_code=400, detail="Empty file")
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided")
 
-    try:
-        result = await run_etl(
-            raw_bytes=raw_bytes,
-            filename=file.filename or "unknown.nakama-0",
-            date_str=date,
-            supabase_url=SUPABASE_URL,
-            service_key=SUPABASE_SERVICE_KEY,
-            bucket=BUCKET,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.exception("ETL failed for %s", file.filename)
-        raise HTTPException(status_code=500, detail=f"ETL error: {exc}") from exc
+    results = []
+    errors = []
 
-    return result
+    for file in files:
+        raw_bytes = await file.read()
+        if not raw_bytes:
+            errors.append({"filename": file.filename, "error": "Empty file"})
+            continue
+
+        try:
+            result = await run_etl(
+                raw_bytes=raw_bytes,
+                filename=file.filename or "unknown.nakama-0",
+                supabase_url=SUPABASE_URL,
+                service_key=SUPABASE_SERVICE_KEY,
+                bucket=BUCKET,
+            )
+            results.append(result)
+            logger.info("ETL OK: %s → date=%s maps=%s", file.filename, result.get("date"), result.get("maps_processed"))
+        except Exception as exc:
+            logger.exception("ETL failed for %s", file.filename)
+            errors.append({"filename": file.filename, "error": str(exc)})
+
+    total_rows = sum(r.get("rows", 0) for r in results)
+    all_maps = sorted(set(m for r in results for m in r.get("maps_processed", [])))
+    all_dates = sorted(set(r.get("date") for r in results if r.get("date")))
+
+    return {
+        "files_processed": len(results),
+        "files_failed": len(errors),
+        "total_rows": total_rows,
+        "maps_updated": all_maps,
+        "dates_updated": all_dates,
+        "errors": errors,
+    }
 
 
 @app.get("/api/moments")
