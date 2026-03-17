@@ -1,0 +1,29 @@
+# Node
+gods-eye/node_modules/
+gods-eye/dist/
+gods-eye/dist-ssr/
+gods-eye/.env.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+backend/__pycache__/
+scripts/__pycache__/
+
+# Backend secrets
+backend/.env
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+
+# Raw game data (large binary files — process with prepare_data.py)
+player_data/
+
+# Logs
+*.log
