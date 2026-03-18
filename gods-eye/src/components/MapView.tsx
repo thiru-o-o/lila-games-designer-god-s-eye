@@ -17,6 +17,7 @@ import L from 'leaflet';
 import 'leaflet.heat';
 import { worldToPixel, worldToLeaflet } from '../utils/coordinateMapper';
 import type { GameEvent } from '../hooks/useMatchData';
+import { PLAYER_PALETTE } from '../tokens';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -38,10 +39,10 @@ function minimapUrl(mapId: string): string {
 }
 
 export interface MapViewProps {
-  mapId: string;
-  events: GameEvent[];
-  currentTime: number;
-  selectedPlayerId: string | null;
+  mapId:              string;
+  events:             GameEvent[];
+  currentTime:        number;
+  selectedPlayerIds:  string[];
   showPlayerMarkers:  boolean;
   showHeatPvP:        boolean;
   showHeatPvE:        boolean;
@@ -50,7 +51,9 @@ export interface MapViewProps {
   showHeatLoot:       boolean;
   showHeatDropZones:  boolean;
   showHeatExtraction: boolean;
-  onPlayerClick: (playerId: string) => void;
+  dangerZone:         { gx: number; gz: number; count: number } | null;
+  showDangerZone:     boolean;
+  onPlayerClick:      (playerId: string) => void;
 }
 
 function toLatLng(x: number, z: number, mapId: string): [number, number] {
@@ -58,10 +61,97 @@ function toLatLng(x: number, z: number, mapId: string): [number, number] {
   return [1024 - py, px];
 }
 
+/* ------------------------------------------------------------------ */
+/*  MapControls overlay                                                 */
+/* ------------------------------------------------------------------ */
+
+const PAN_DELTA = 80;
+
+const CTL_BTN: React.CSSProperties = {
+  width: 30, height: 30,
+  background: 'rgba(30,41,59,0.9)',
+  border: '1px solid #334155',
+  borderRadius: 6,
+  color: '#94a3b8',
+  cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontSize: 14, fontWeight: 700,
+  transition: 'background 0.15s, color 0.15s',
+  flexShrink: 0,
+};
+
+function MapControls({ mapRef, mapReady }: { mapRef: React.RefObject<L.Map | null>; mapReady: boolean }) {
+  if (!mapReady) return null;
+
+  const zoom = (delta: number) => mapRef.current?.zoomBy(delta);
+  const pan  = (dx: number, dy: number) => mapRef.current?.panBy([dy, dx]);
+  const reset = () => mapRef.current?.fitBounds(MAP_BOUNDS, { padding: [10, 10], animate: true });
+
+  const btn = (label: string, onClick: () => void, title?: string) => (
+    <button
+      style={CTL_BTN}
+      onClick={onClick}
+      title={title ?? label}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(56,189,248,0.15)';
+        (e.currentTarget as HTMLButtonElement).style.color = '#38bdf8';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(30,41,59,0.9)';
+        (e.currentTarget as HTMLButtonElement).style.color = '#94a3b8';
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div style={{
+      position: 'absolute',
+      bottom: 88,
+      right: 12,
+      zIndex: 1000,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 4,
+      pointerEvents: 'auto',
+    }}>
+      {/* Zoom */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {btn('+', () => zoom(1),  'Zoom in')}
+        {btn('−', () => zoom(-1), 'Zoom out')}
+      </div>
+
+      {/* Reset */}
+      <div style={{ marginTop: 2 }}>
+        {btn('⊙', reset, 'Fit map to screen')}
+      </div>
+
+      {/* Directional pad */}
+      <div style={{ display: 'grid', gridTemplateColumns: '30px 30px 30px', gap: 2, marginTop: 2 }}>
+        <span />
+        {btn('▲', () => pan(0, -PAN_DELTA), 'Pan north')}
+        <span />
+        {btn('◀', () => pan(-PAN_DELTA, 0), 'Pan west')}
+        {btn('·', reset, 'Centre')}
+        {btn('▶', () => pan(PAN_DELTA, 0),  'Pan east')}
+        <span />
+        {btn('▼', () => pan(0, PAN_DELTA),  'Pan south')}
+        <span />
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main component                                                      */
+/* ------------------------------------------------------------------ */
+
 export function MapView({
-  mapId, events, currentTime, selectedPlayerId,
+  mapId, events, currentTime, selectedPlayerIds,
   showPlayerMarkers, showHeatPvP, showHeatPvE, showHeatStorm, showHeatTraffic,
   showHeatLoot, showHeatDropZones, showHeatExtraction,
+  dangerZone, showDangerZone,
   onPlayerClick,
 }: MapViewProps) {
   const containerRef       = useRef<HTMLDivElement>(null);
@@ -75,7 +165,9 @@ export function MapView({
   const heatLootRef        = useRef<any>(null);
   const heatDropZonesRef   = useRef<any>(null);
   const heatExtractionRef  = useRef<any>(null);
-  const polylineRef        = useRef<L.Polyline | null>(null);
+  /* Per-player polylines keyed by player ID */
+  const polylinesRef       = useRef<Map<string, L.Polyline>>(new Map());
+  const dangerZoneLayerRef = useRef<L.LayerGroup | null>(null);
 
   const [mapReady, setMapReady] = useState(false);
 
@@ -91,7 +183,7 @@ export function MapView({
 
     const map = L.map(el, {
       crs: L.CRS.Simple, minZoom: -3, maxZoom: 4,
-      zoomSnap: 0.25, zoomControl: true,
+      zoomSnap: 0.25, zoomControl: false,   // using custom controls instead
       attributionControl: false, preferCanvas: true,
     });
 
@@ -125,7 +217,8 @@ export function MapView({
       heatLootRef.current      = null;
       heatDropZonesRef.current = null;
       heatExtractionRef.current = null;
-      polylineRef.current      = null;
+      polylinesRef.current.clear();
+      dangerZoneLayerRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -153,15 +246,18 @@ export function MapView({
       latest.forEach((ev) => {
         const [lat, lng] = toLatLng(ev.x, ev.z, ev.map_id);
         const human      = !ev.is_bot;
-        const isSelected = selectedPlayerId === ev.user_id;
-        const isFaded    = selectedPlayerId !== null && !isSelected;
+        const palIdx     = selectedPlayerIds.indexOf(ev.user_id);
+        const isSelected = palIdx >= 0;
+        const isFaded    = selectedPlayerIds.length > 0 && !isSelected;
 
         const dotSize     = isSelected ? 12 : 8;
         const iconSize    = dotSize + 4;
-        const dotColor    = isSelected ? '#22d3ee' : (human ? '#3b82f6' : '#6b7280');
-        const borderColor = isSelected ? '#22d3ee' : '#fff';
+        const dotColor    = isSelected
+          ? PLAYER_PALETTE[palIdx % PLAYER_PALETTE.length]
+          : (human ? '#3b82f6' : '#6b7280');
+        const borderColor = isSelected ? dotColor : '#fff';
         const shadow      = isSelected
-          ? '0 0 8px rgba(34,211,238,.9), 0 0 2px #000'
+          ? `0 0 8px ${dotColor}cc, 0 0 2px #000`
           : '0 0 4px rgba(0,0,0,.6)';
 
         const icon = L.divIcon({
@@ -170,7 +266,7 @@ export function MapView({
           iconSize:   [iconSize, iconSize],
           iconAnchor: [iconSize / 2, iconSize / 2],
         });
-        L.marker([lat, lng], { icon, opacity: isFaded ? 0.15 : 1 })
+        L.marker([lat, lng], { icon, opacity: isFaded ? 0.2 : 1 })
           .on('click', () => onPlayerClick(ev.user_id))
           .bindPopup(`${human ? '🧑 Player' : '🤖 Bot'}: ${ev.user_id.slice(0, 8)}`)
           .addTo(group);
@@ -181,7 +277,7 @@ export function MapView({
     for (const ev of visibleEvents) {
       if (!COMBAT_LOOT.has(ev.event)) continue;
       const [lat, lng] = toLatLng(ev.x, ev.z, ev.map_id);
-      const isFaded    = selectedPlayerId !== null && ev.user_id !== selectedPlayerId;
+      const isFaded    = selectedPlayerIds.length > 0 && !selectedPlayerIds.includes(ev.user_id);
 
       let html: string;
       let size: [number, number];
@@ -202,26 +298,80 @@ export function MapView({
         .bindPopup(`${ev.event} — ${ev.user_id.slice(0, 8)}`)
         .addTo(group);
     }
-  }, [visibleEvents, showPlayerMarkers, selectedPlayerId, onPlayerClick]);
+  }, [visibleEvents, showPlayerMarkers, selectedPlayerIds, onPlayerClick]);
 
-  /* 4. Player-path polyline */
+  /* 4. Per-player path polylines (one per selected player, each in their palette colour) */
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (polylineRef.current) { map.removeLayer(polylineRef.current); polylineRef.current = null; }
-    if (!selectedPlayerId) return;
 
-    const pts = visibleEvents
-      .filter((e) => e.user_id === selectedPlayerId && (e.event === 'Position' || e.event === 'BotPosition'))
-      .sort((a, b) => a.ts - b.ts)
-      .map((e) => toLatLng(e.x, e.z, e.map_id) as L.LatLngTuple);
+    /* Remove all existing polylines */
+    polylinesRef.current.forEach((poly) => map.removeLayer(poly));
+    polylinesRef.current.clear();
 
-    if (pts.length > 1) {
-      polylineRef.current = L.polyline(pts, {
-        color: '#22d3ee', weight: 3, opacity: 0.9, dashArray: '5, 10',
-      }).addTo(map);
+    selectedPlayerIds.forEach((playerId, idx) => {
+      const color = PLAYER_PALETTE[idx % PLAYER_PALETTE.length];
+      const pts = visibleEvents
+        .filter((e) => e.user_id === playerId && (e.event === 'Position' || e.event === 'BotPosition'))
+        .sort((a, b) => a.ts - b.ts)
+        .map((e) => toLatLng(e.x, e.z, e.map_id) as L.LatLngTuple);
+
+      if (pts.length > 1) {
+        const poly = L.polyline(pts, {
+          color, weight: 2.5, opacity: 0.85, dashArray: '5, 8',
+        }).addTo(map);
+        polylinesRef.current.set(playerId, poly);
+      }
+    });
+  }, [visibleEvents, selectedPlayerIds]);
+
+  /* 5h. Danger Zone marker */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+
+    if (dangerZoneLayerRef.current) {
+      map.removeLayer(dangerZoneLayerRef.current);
+      dangerZoneLayerRef.current = null;
     }
-  }, [visibleEvents, selectedPlayerId]);
+
+    if (!showDangerZone || !dangerZone) return;
+
+    const cx = dangerZone.gx + 50;
+    const cz = dangerZone.gz + 50;
+    const [lat, lng] = toLatLng(cx, cz, mapId);
+
+    const group = L.layerGroup();
+
+    /* Pulsing circle */
+    L.circle([lat, lng], {
+      radius: 60,
+      color: '#ef4444', weight: 2,
+      fillColor: '#ef4444', fillOpacity: 0.12,
+      dashArray: '6, 4',
+      className: 'danger-zone-ring',
+    }).addTo(group);
+
+    /* Skull marker with popup */
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="font-size:20px;line-height:1;text-shadow:0 0 6px #ef4444,0 0 2px #000;filter:drop-shadow(0 0 4px #ef4444)">☠</div>`,
+      iconSize:   [24, 24],
+      iconAnchor: [12, 12],
+    });
+    L.marker([lat, lng], { icon })
+      .bindPopup(
+        `<b style="color:#ef4444">☠ Most Dangerous Zone</b><br/>` +
+        `X: ${dangerZone.gx} – ${dangerZone.gx + 100}<br/>` +
+        `Z: ${dangerZone.gz} – ${dangerZone.gz + 100}<br/>` +
+        `<span style="color:#94a3b8">${dangerZone.count} eliminations</span>`,
+        { maxWidth: 200 },
+      )
+      .addTo(group);
+
+    group.addTo(map);
+    dangerZoneLayerRef.current = group;
+  }, [showDangerZone, dangerZone, mapId, mapReady]);
 
   /* Heat-point builders */
   function heatPts(evTypes: Set<string>, intensity: number): [number, number, number][] {
@@ -234,7 +384,6 @@ export function MapView({
     return pts;
   }
 
-  /* Drop Zones: first Position event per player (events are sorted ASC) */
   function heatPtsDropZones(): [number, number, number][] {
     const seen = new Set<string>();
     const pts: [number, number, number][] = [];
@@ -248,7 +397,6 @@ export function MapView({
     return pts;
   }
 
-  /* Extraction Corridors: last Position of players who were never killed */
   function heatPtsExtraction(): [number, number, number][] {
     const DEATH_EVENTS = new Set(['Killed', 'BotKilled', 'KilledByStorm']);
     const diedPlayers  = new Set(
@@ -348,7 +496,7 @@ export function MapView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleEvents, showHeatLoot, mapReady]);
 
-  /* 5f. Drop Zones (first Position per player) */
+  /* 5f. Drop Zones */
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map || !mapHasSize(map)) return;
@@ -364,7 +512,7 @@ export function MapView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleEvents, showHeatDropZones, mapReady]);
 
-  /* 5g. Extraction Corridors (last Position of surviving players) */
+  /* 5g. Extraction Corridors */
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map || !mapHasSize(map)) return;
@@ -381,9 +529,12 @@ export function MapView({
   }, [visibleEvents, showHeatExtraction, mapReady]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#1a1a2e' }}
-    />
+    <div style={{ position: 'absolute', inset: 0 }}>
+      <div
+        ref={containerRef}
+        style={{ position: 'absolute', inset: 0, background: '#1a1a2e' }}
+      />
+      <MapControls mapRef={mapRef} mapReady={mapReady} />
+    </div>
   );
 }

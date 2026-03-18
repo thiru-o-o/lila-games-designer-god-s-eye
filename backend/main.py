@@ -87,6 +87,8 @@ class MomentCreate(BaseModel):
     player_id: Optional[str] = None
     scrubber_time: int = 0
     saved_at: int = 0
+    description: str = ""
+    tags: List[str] = []
 
 
 # ---------------------------------------------------------------------------

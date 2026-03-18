@@ -19,3 +19,16 @@ export const TEXT_TERTIARY  = '#475569';
 
 /** Sky-400 — the single unified interactive accent colour. */
 export const ACCENT = '#38bdf8';
+
+/**
+ * Per-player colour palette for multi-selection.
+ * Index in the selectedPlayers array maps to a colour here.
+ */
+export const PLAYER_PALETTE = [
+  '#22d3ee', // cyan-400
+  '#f59e0b', // amber-400
+  '#a78bfa', // violet-400
+  '#34d399', // emerald-400
+  '#f87171', // red-400
+  '#fb923c', // orange-400
+] as const;

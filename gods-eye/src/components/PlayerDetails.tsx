@@ -10,8 +10,9 @@ import type { GameEvent } from '../hooks/useMatchData';
 import { SURFACE_1, SURFACE_2, BORDER, TEXT_SECONDARY, ACCENT } from '../tokens';
 
 interface PlayerDetailsProps {
-  playerId: string | null;
-  events: GameEvent[];
+  playerId:    string | null;
+  events:      GameEvent[];
+  accentColor?: string;
 }
 
 /* ---- local aliases ---- */
@@ -26,7 +27,7 @@ const FATE_LABEL: Record<string, { text: string; color: string }> = {
   KilledByStorm: { text: 'Lost to the storm',      color: '#06b6d4' },
 };
 
-export function PlayerDetails({ playerId, events }: PlayerDetailsProps) {
+export function PlayerDetails({ playerId, events, accentColor }: PlayerDetailsProps) {
   const playerEvents = useMemo(
     () => (playerId ? events.filter((e) => e.user_id === playerId) : []),
     [playerId, events],
@@ -76,6 +77,7 @@ export function PlayerDetails({ playerId, events }: PlayerDetailsProps) {
       <div style={{
         padding: '10px 14px',
         borderBottom: `1px solid ${BORDER}`,
+        borderLeft: accentColor ? `3px solid ${accentColor}` : '3px solid transparent',
         display: 'flex', alignItems: 'center', gap: 8,
       }}>
         <span style={{ fontSize: 18 }}>{stats.isBot ? '🤖' : '🧑'}</span>

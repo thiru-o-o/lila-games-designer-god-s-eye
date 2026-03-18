@@ -9,7 +9,8 @@ import type { MatchMeta } from '../hooks/useMatchList';
 import type { SavedMoment } from '../App';
 import { ALL_MATCHES } from '../hooks/useMatchData';
 import { formatMsToMMSS } from '../utils/formatTime';
-import { SURFACE_1, SURFACE_2, BORDER, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_TERTIARY, ACCENT } from '../tokens';
+import { SURFACE_1, SURFACE_2, BORDER, TEXT_PRIMARY, TEXT_SECONDARY, ACCENT } from '../tokens';
+import { InfoTip } from './InfoTip';
 
 /* ---- local aliases (keep component body unchanged) ---- */
 const SIDEBAR_BG = SURFACE_1;
@@ -75,9 +76,10 @@ interface SidebarProps {
   onToggleHeatDropZones:    () => void;
   onToggleHeatExtraction:   () => void;
   onTogglePlayerMarkers:    () => void;
-  savedMoments:    SavedMoment[];
-  onDeleteMoment:  (id: string) => void;
-  onRestoreMoment: (moment: SavedMoment) => void;
+  savedMoments:        SavedMoment[];
+  onDeleteMoment:      (id: string) => void;
+  onRestoreMoment:     (moment: SavedMoment) => void;
+  onShowMomentsLibrary: () => void;
 }
 
 export function Sidebar({
@@ -89,7 +91,7 @@ export function Sidebar({
   showHeatLoot, showHeatDropZones, showHeatExtraction, showPlayerMarkers,
   onToggleHeatPvP, onToggleHeatPvE, onToggleHeatStorm, onToggleHeatTraffic,
   onToggleHeatLoot, onToggleHeatDropZones, onToggleHeatExtraction, onTogglePlayerMarkers,
-  savedMoments, onDeleteMoment, onRestoreMoment,
+  savedMoments, onDeleteMoment, onRestoreMoment, onShowMomentsLibrary,
 }: SidebarProps) {
 
   /* Event stats from loaded events */
@@ -451,14 +453,32 @@ export function Sidebar({
 
         {/* Saved Moments */}
         <div style={sectionStyle}>
-          <p style={labelStyle}>🔖 Saved Moments</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <p style={{ ...labelStyle, margin: 0 }}>🔖 Saved Moments</p>
+            {savedMoments.length > 0 && (
+              <button
+                onClick={onShowMomentsLibrary}
+                style={{
+                  background: 'none', border: 'none',
+                  color: ACCENT, fontSize: 11,
+                  cursor: 'pointer', padding: 0,
+                  flexShrink: 0,
+                  transition: 'opacity 0.15s',
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = '0.7')}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = '1')}
+              >
+                View all →
+              </button>
+            )}
+          </div>
           {savedMoments.length === 0 ? (
             <p style={{ fontSize: 12, color: TEXT_MUTED }}>
               Use the bookmark button in the playback bar to save interesting moments for review.
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {savedMoments.map((m) => (
+              {savedMoments.slice(0, 3).map((m) => (
                 <div
                   key={m.id}
                   style={{
@@ -476,8 +496,8 @@ export function Sidebar({
                       </div>
                       <div style={{ fontSize: 10, color: TEXT_MUTED, marginTop: 2 }}>
                         {m.map} · {m.dateFrom === m.dateTo
-                          ? m.dateFrom.replace('2026-', 'Feb ')
-                          : `${m.dateFrom.replace('2026-', 'Feb ')} – ${m.dateTo.replace('2026-', 'Feb ')}`}
+                          ? m.dateFrom
+                          : `${m.dateFrom} – ${m.dateTo}`}
                       </div>
                     </div>
                     <button
@@ -492,6 +512,24 @@ export function Sidebar({
                       ×
                     </button>
                   </div>
+                  {/* Tag pills — read-only preview */}
+                  {m.tags && m.tags.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 5 }}>
+                      {m.tags.slice(0, 3).map((tag) => (
+                        <span key={tag} style={{
+                          background: 'rgba(56,189,248,0.08)',
+                          border: '1px solid rgba(56,189,248,0.2)',
+                          borderRadius: 99, fontSize: 9,
+                          padding: '1px 6px', color: ACCENT,
+                        }}>
+                          {tag}
+                        </span>
+                      ))}
+                      {m.tags.length > 3 && (
+                        <span style={{ fontSize: 9, color: TEXT_MUTED }}>+{m.tags.length - 3}</span>
+                      )}
+                    </div>
+                  )}
                   <button
                     onClick={() => onRestoreMoment(m)}
                     style={{
@@ -510,6 +548,29 @@ export function Sidebar({
                   </button>
                 </div>
               ))}
+              {savedMoments.length > 3 && (
+                <button
+                  onClick={onShowMomentsLibrary}
+                  style={{
+                    background: 'none',
+                    border: `1px solid ${BORDER}`,
+                    borderRadius: 6, color: TEXT_MUTED,
+                    fontSize: 11, padding: '6px 10px',
+                    cursor: 'pointer', width: '100%',
+                    transition: 'border-color 0.15s, color 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = ACCENT;
+                    (e.currentTarget as HTMLButtonElement).style.color = ACCENT;
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = BORDER;
+                    (e.currentTarget as HTMLButtonElement).style.color = TEXT_MUTED;
+                  }}
+                >
+                  +{savedMoments.length - 3} more — View all →
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -537,65 +598,7 @@ function LabelWithTip({ label, tip }: { label: string; tip: string }) {
   );
 }
 
-function InfoTip({ text }: { text: string }) {
-  const [visible, setVisible] = useState(false);
-  const [pos, setPos]         = useState({ x: 0, y: 0 });
-  const ref = useRef<HTMLSpanElement>(null);
-
-  const show = () => {
-    if (!ref.current) return;
-    const r = ref.current.getBoundingClientRect();
-    setPos({ x: r.left + r.width / 2, y: r.top - 6 });
-    setVisible(true);
-  };
-
-  return (
-    <>
-      <span
-        ref={ref}
-        onMouseEnter={show}
-        onMouseLeave={() => setVisible(false)}
-        style={{
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          width: 14, height: 14, borderRadius: '50%',
-          border: `1px solid ${TEXT_TERTIARY}`, color: TEXT_TERTIARY,
-          fontSize: 9, cursor: 'help', marginLeft: 5,
-          flexShrink: 0, userSelect: 'none',
-          transition: 'border-color 0.15s, color 0.15s',
-        }}
-        onFocus={show}
-        onBlur={() => setVisible(false)}
-      >
-        ?
-      </span>
-      {visible && (
-        <div style={{
-          position: 'fixed',
-          left: pos.x,
-          top: pos.y,
-          transform: 'translate(-50%, -100%)',
-          background: SURFACE_2,
-          color: TEXT_PRIMARY,
-          border: `1px solid ${BORDER}`,
-          borderRadius: 6,
-          padding: '6px 10px',
-          fontSize: 11,
-          fontWeight: 400,
-          lineHeight: 1.5,
-          letterSpacing: 0,
-          textTransform: 'none',
-          maxWidth: 220,
-          width: 'max-content',
-          pointerEvents: 'none',
-          zIndex: 9999,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.45)',
-        }}>
-          {text}
-        </div>
-      )}
-    </>
-  );
-}
+// InfoTip is now in ./InfoTip.tsx
 
 function StatCell({
   label, value, color, tip,
