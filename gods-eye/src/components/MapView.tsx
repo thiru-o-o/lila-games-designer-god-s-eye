@@ -83,7 +83,10 @@ const CTL_BTN: React.CSSProperties = {
 function MapControls({ mapRef, mapReady }: { mapRef: React.RefObject<L.Map | null>; mapReady: boolean }) {
   if (!mapReady) return null;
 
-  const zoom = (delta: number) => mapRef.current?.zoomBy(delta);
+  const zoom = (delta: number) => {
+    const map = mapRef.current;
+    if (map) map.setZoom(map.getZoom() + delta);
+  };
   const pan  = (dx: number, dy: number) => mapRef.current?.panBy([dy, dx]);
   const reset = () => mapRef.current?.fitBounds(MAP_BOUNDS, { padding: [10, 10], animate: true });
 
