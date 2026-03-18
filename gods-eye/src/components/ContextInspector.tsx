@@ -15,11 +15,12 @@ import { PlayerDetails } from './PlayerDetails';
 import type { GameEvent } from '../hooks/useMatchData';
 import { ALL_MATCHES } from '../hooks/useMatchData';
 import { formatMsToMMSS } from '../utils/formatTime';
+import { SURFACE_1, SURFACE_2, BORDER, TEXT_PRIMARY, TEXT_SECONDARY } from '../tokens';
 
-const BORDER     = '#334155';
-const TEXT_MAIN  = '#e2e8f0';
-const TEXT_MUTED = '#94a3b8';
-const PANEL_BG   = '#0f172a';
+/* ---- local aliases ---- */
+const PANEL_BG   = SURFACE_1;   // dark cards on the medium-surface pane
+const TEXT_MAIN  = TEXT_PRIMARY;
+const TEXT_MUTED = TEXT_SECONDARY;
 
 const labelStyle: React.CSSProperties = {
   display: 'block',
@@ -127,7 +128,7 @@ export function ContextInspector({ selectedPlayer, selectedMatch, events, onClea
   return (
     <div style={{
       width: 300, minWidth: 300,
-      background: '#1e293b',
+      background: SURFACE_2,
       borderLeft: `1px solid ${BORDER}`,
       display: 'flex', flexDirection: 'column',
       height: '100%', overflowY: 'auto',

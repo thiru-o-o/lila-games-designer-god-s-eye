@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { Play, Pause, RotateCcw, Bookmark, Link2 } from 'lucide-react';
 import { SPEED_OPTIONS } from '../hooks/usePlayback';
 import type { PlaybackState, PlaybackControls as PlaybackControlsType } from '../hooks/usePlayback';
+import { ACCENT, SURFACE_2, BORDER } from '../tokens';
 
 interface PlaybackControlsProps {
   playbackState: PlaybackState;
@@ -90,10 +91,11 @@ export function PlaybackControls({ playbackState, controls, onSaveMoment }: Play
           aria-label={isPlaying ? 'Pause' : 'Play'}
           style={{
             width: 36, height: 36, borderRadius: '50%',
-            background: '#3b82f6', border: 'none', cursor: 'pointer',
+            background: ACCENT, border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', flexShrink: 0,
-            boxShadow: '0 0 0 3px rgba(59,130,246,0.25)',
+            color: '#0f172a', flexShrink: 0,
+            boxShadow: `0 0 0 3px rgba(56,189,248,0.25)`,
+            transition: 'background 0.15s, box-shadow 0.15s',
           }}
         >
           {isPlaying ? <Pause size={16} /> : <Play size={16} style={{ marginLeft: 2 }} />}
@@ -116,7 +118,7 @@ export function PlaybackControls({ playbackState, controls, onSaveMoment }: Play
               width: '100%', height: 4,
               appearance: 'none', WebkitAppearance: 'none',
               borderRadius: 2, cursor: 'pointer', outline: 'none',
-              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${progress}%, #334155 ${progress}%, #334155 100%)`,
+              background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${progress}%, ${BORDER} ${progress}%, ${BORDER} 100%)`,
             }}
           />
         </div>
@@ -131,8 +133,8 @@ export function PlaybackControls({ playbackState, controls, onSaveMoment }: Play
           value={speed}
           onChange={(e) => setSpeed(Number(e.target.value))}
           style={{
-            background: '#1e293b', color: '#94a3b8',
-            border: '1px solid #334155', borderRadius: 6,
+            background: SURFACE_2, color: '#94a3b8',
+            border: `1px solid ${BORDER}`, borderRadius: 6,
             padding: '3px 6px', fontSize: 12,
             cursor: 'pointer', outline: 'none',
           }}

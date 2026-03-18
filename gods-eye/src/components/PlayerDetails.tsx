@@ -7,15 +7,16 @@
 
 import { useMemo } from 'react';
 import type { GameEvent } from '../hooks/useMatchData';
+import { SURFACE_1, SURFACE_2, BORDER, TEXT_SECONDARY, ACCENT } from '../tokens';
 
 interface PlayerDetailsProps {
   playerId: string | null;
   events: GameEvent[];
 }
 
-const PANEL_BG   = '#0f172a';
-const BORDER     = '#334155';
-const TEXT_MUTED = '#94a3b8';
+/* ---- local aliases ---- */
+const PANEL_BG   = SURFACE_1;
+const TEXT_MUTED = TEXT_SECONDARY;
 
 const DEATH_EVENTS = new Set(['Killed', 'BotKilled', 'KilledByStorm']);
 
@@ -81,7 +82,7 @@ export function PlayerDetails({ playerId, events }: PlayerDetailsProps) {
         <div>
           <div style={{
             fontSize: 11, fontWeight: 700,
-            color: stats.isBot ? '#9ca3af' : '#3b82f6',
+            color: stats.isBot ? '#9ca3af' : ACCENT,
             textTransform: 'uppercase', letterSpacing: '0.06em',
           }}>
             {stats.isBot ? 'Bot' : 'Human Player'}
@@ -109,7 +110,7 @@ export function PlayerDetails({ playerId, events }: PlayerDetailsProps) {
         </span>
         <div>
           <div style={{
-            fontSize: 9, color: TEXT_MUTED,
+            fontSize: 10, color: TEXT_MUTED,
             textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2,
           }}>
             Outcome
@@ -132,10 +133,10 @@ export function PlayerDetails({ playerId, events }: PlayerDetailsProps) {
 
 function StatCell({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div style={{ background: '#1e293b', padding: '10px 12px', textAlign: 'center' }}>
+    <div style={{ background: SURFACE_2, padding: '10px 12px', textAlign: 'center' }}>
       <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
       <div style={{
-        fontSize: 9, color: TEXT_MUTED,
+        fontSize: 10, color: TEXT_MUTED,
         textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2,
       }}>
         {label}

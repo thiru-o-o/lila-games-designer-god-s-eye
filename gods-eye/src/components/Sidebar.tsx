@@ -3,20 +3,19 @@
  * Pure-UI component — all data and callbacks come from App.tsx.
  */
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameEvent } from '../hooks/useMatchData';
 import type { MatchMeta } from '../hooks/useMatchList';
 import type { SavedMoment } from '../App';
 import { ALL_MATCHES } from '../hooks/useMatchData';
 import { formatMsToMMSS } from '../utils/formatTime';
+import { SURFACE_1, SURFACE_2, BORDER, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_TERTIARY, ACCENT } from '../tokens';
 
-/* ---- style tokens ---- */
-const SIDEBAR_BG  = '#0f172a';
-const PANEL_BG    = '#1e293b';
-const BORDER      = '#334155';
-const TEXT_MAIN   = '#e2e8f0';
-const TEXT_MUTED  = '#94a3b8';
-const ACCENT      = '#38bdf8';
+/* ---- local aliases (keep component body unchanged) ---- */
+const SIDEBAR_BG = SURFACE_1;
+const PANEL_BG   = SURFACE_2;
+const TEXT_MAIN  = TEXT_PRIMARY;
+const TEXT_MUTED = TEXT_SECONDARY;
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -145,19 +144,25 @@ export function Sidebar({
       background: SIDEBAR_BG,
       borderRight: `1px solid ${BORDER}`,
       display: 'flex', flexDirection: 'column',
-      height: '100%', overflowY: 'auto',
+      height: '100%',
     }}>
 
-      {/* Header */}
-      <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${BORDER}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 18, lineHeight: 1 }}>👁</span>
-          <h1 style={{ fontSize: 17, fontWeight: 700, color: TEXT_MAIN, margin: 0 }}>God's Eye</h1>
+      {/* Sticky top: always-visible header + upload panel */}
+      <div style={{ flexShrink: 0 }}>
+        <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${BORDER}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>👁</span>
+            <h1 style={{ fontSize: 17, fontWeight: 700, color: TEXT_MAIN, margin: 0 }}>God's Eye</h1>
+          </div>
+          <p style={{ color: TEXT_MUTED, fontSize: 11, marginTop: 2, marginBottom: 0 }}>
+            LILA BLACK · Level Design Analytics
+          </p>
         </div>
-        <p style={{ color: TEXT_MUTED, fontSize: 11, marginTop: 2, marginBottom: 0 }}>
-          LILA BLACK · Level Design Analytics
-        </p>
+        <UploadPanel onUploadDone={() => window.location.reload()} />
       </div>
+
+      {/* Scrollable filters & stats */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
 
       {/* Progress Stepper */}
       <div style={{ padding: '10px 16px', borderBottom: `1px solid ${BORDER}` }}>
@@ -288,7 +293,7 @@ export function Sidebar({
         {/* Quick Stats */}
         {events.length > 0 && (
           <div style={sectionStyle}>
-            <p style={{ ...labelStyle, marginBottom: 8 }}>Quick Stats</p>
+            <p style={{ ...labelStyle, marginBottom: 8 }}>📊 Quick Stats</p>
             <div style={{
               background: PANEL_BG, border: `1px solid ${BORDER}`,
               borderRadius: 8, padding: '10px 12px',
@@ -325,7 +330,7 @@ export function Sidebar({
         {/* Activity Maps (Heatmaps) */}
         <div style={sectionStyle}>
           <LabelWithTip
-            label="Activity Maps"
+            label="🔥 Activity Maps"
             tip="Overlay heatmaps to see where key actions are concentrated across the map."
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -415,7 +420,7 @@ export function Sidebar({
 
         {/* Map Insights */}
         <div style={sectionStyle}>
-          <p style={labelStyle}>Map Insights</p>
+          <p style={labelStyle}>🗺 Map Insights</p>
           {stormCenter ? (
             <div style={{
               background: PANEL_BG, border: `1px solid #164e63`,
@@ -446,7 +451,7 @@ export function Sidebar({
 
         {/* Saved Moments */}
         <div style={sectionStyle}>
-          <p style={labelStyle}>Saved Moments</p>
+          <p style={labelStyle}>🔖 Saved Moments</p>
           {savedMoments.length === 0 ? (
             <p style={{ fontSize: 12, color: TEXT_MUTED }}>
               Use the bookmark button in the playback bar to save interesting moments for review.
@@ -509,10 +514,9 @@ export function Sidebar({
           )}
         </div>
 
-        {/* Upload new data — only visible if VITE_API_URL is set */}
-        <UploadPanel onUploadDone={() => window.location.reload()} />
 
       </div>
+      </div>{/* end scrollable */}
     </div>
   );
 }
@@ -534,19 +538,62 @@ function LabelWithTip({ label, tip }: { label: string; tip: string }) {
 }
 
 function InfoTip({ text }: { text: string }) {
+  const [visible, setVisible] = useState(false);
+  const [pos, setPos]         = useState({ x: 0, y: 0 });
+  const ref = useRef<HTMLSpanElement>(null);
+
+  const show = () => {
+    if (!ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    setPos({ x: r.left + r.width / 2, y: r.top - 6 });
+    setVisible(true);
+  };
+
   return (
-    <span
-      title={text}
-      style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: 13, height: 13, borderRadius: '50%',
-        border: '1px solid #475569', color: '#475569',
-        fontSize: 9, cursor: 'help', marginLeft: 5,
-        flexShrink: 0, userSelect: 'none',
-      }}
-    >
-      ?
-    </span>
+    <>
+      <span
+        ref={ref}
+        onMouseEnter={show}
+        onMouseLeave={() => setVisible(false)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: 14, height: 14, borderRadius: '50%',
+          border: `1px solid ${TEXT_TERTIARY}`, color: TEXT_TERTIARY,
+          fontSize: 9, cursor: 'help', marginLeft: 5,
+          flexShrink: 0, userSelect: 'none',
+          transition: 'border-color 0.15s, color 0.15s',
+        }}
+        onFocus={show}
+        onBlur={() => setVisible(false)}
+      >
+        ?
+      </span>
+      {visible && (
+        <div style={{
+          position: 'fixed',
+          left: pos.x,
+          top: pos.y,
+          transform: 'translate(-50%, -100%)',
+          background: SURFACE_2,
+          color: TEXT_PRIMARY,
+          border: `1px solid ${BORDER}`,
+          borderRadius: 6,
+          padding: '6px 10px',
+          fontSize: 11,
+          fontWeight: 400,
+          lineHeight: 1.5,
+          letterSpacing: 0,
+          textTransform: 'none',
+          maxWidth: 220,
+          width: 'max-content',
+          pointerEvents: 'none',
+          zIndex: 9999,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.45)',
+        }}>
+          {text}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -556,7 +603,7 @@ function StatCell({
   return (
     <div style={{ textAlign: 'center' }} title={tip}>
       <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
-      <div style={{ fontSize: 9, color: TEXT_MUTED, textTransform: 'uppercase',
+      <div style={{ fontSize: 10, color: TEXT_MUTED, textTransform: 'uppercase',
         letterSpacing: '0.05em', lineHeight: 1.3 }}>
         {label}
       </div>
@@ -635,7 +682,7 @@ function StepLine({ done }: { done: boolean }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  UploadPanel - bulk upload .nakama-0 files to the backend ETL       */
+/*  UploadPanel — pinned at top of sidebar, multiple file upload       */
 /* ------------------------------------------------------------------ */
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '');
@@ -648,8 +695,15 @@ function UploadPanel({ onUploadDone }: { onUploadDone?: () => void }) {
   const [status, setStatus]     = useState<UploadState>('idle');
   const [message, setMessage]   = useState('');
   const [dragging, setDragging] = useState(false);
-  const fileRef   = useRef<HTMLInputElement>(null);
-  const folderRef = useRef<HTMLInputElement>(null);
+  const [dupeWarn, setDupeWarn] = useState<string[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  /* Auto-dismiss duplicate warning after 3 s */
+  useEffect(() => {
+    if (!dupeWarn.length) return;
+    const t = setTimeout(() => setDupeWarn([]), 3000);
+    return () => clearTimeout(t);
+  }, [dupeWarn]);
 
   if (!API_URL) return null;
 
@@ -659,50 +713,14 @@ function UploadPanel({ onUploadDone }: { onUploadDone?: () => void }) {
     if (!incoming.length) return;
     setFiles((prev) => {
       const existing = new Set(prev.map((f) => f.name));
-      return [...prev, ...incoming.filter((f) => !existing.has(f.name))];
+      const dupes = incoming.filter((f) => existing.has(f.name)).map((f) => f.name);
+      if (dupes.length) setDupeWarn(dupes);
+      const fresh = incoming.filter((f) => !existing.has(f.name));
+      if (!fresh.length) return prev;
+      setStatus('idle');
+      setMessage('');
+      return [...prev, ...fresh];
     });
-    setStatus('idle');
-    setMessage('');
-  };
-
-  // Recursively read all files from a FileSystemEntry (handles nested folders).
-  const readEntry = (entry: FileSystemEntry): Promise<File[]> => {
-    if (entry.isFile) {
-      return new Promise((resolve) => {
-        (entry as FileSystemFileEntry).file((f) => resolve([f]), () => resolve([]));
-      });
-    }
-    if (entry.isDirectory) {
-      const reader = (entry as FileSystemDirectoryEntry).createReader();
-      return new Promise((resolve) => {
-        const collected: File[] = [];
-        const readBatch = () => {
-          reader.readEntries(async (entries) => {
-            if (!entries.length) { resolve(collected); return; }
-            const nested = await Promise.all(entries.map(readEntry));
-            collected.push(...nested.flat());
-            readBatch(); // readEntries may return partial batches
-          }, () => resolve(collected));
-        };
-        readBatch();
-      });
-    }
-    return Promise.resolve([]);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    const { items, files: dtFiles } = e.dataTransfer;
-    if (items?.length) {
-      const entries = Array.from(items)
-        .map((item) => item.webkitGetAsEntry())
-        .filter((entry): entry is FileSystemEntry => entry !== null);
-      const nested = await Promise.all(entries.map(readEntry));
-      addFiles(nested.flat());
-    } else {
-      addFiles(Array.from(dtFiles));
-    }
   };
 
   const removeFile = (name: string) => setFiles((prev) => prev.filter((f) => f.name !== name));
@@ -710,7 +728,7 @@ function UploadPanel({ onUploadDone }: { onUploadDone?: () => void }) {
   const handleUpload = async () => {
     if (!files.length) return;
     setStatus('uploading');
-    setMessage(`Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`);
+    setMessage(`Uploading ${files.length} file${files.length > 1 ? 's' : ''}…`);
     try {
       const form = new FormData();
       files.forEach((f) => form.append('files', f));
@@ -726,7 +744,7 @@ function UploadPanel({ onUploadDone }: { onUploadDone?: () => void }) {
       const summary = [
         `${files_processed} file${files_processed !== 1 ? 's' : ''} processed`,
         `${total_rows.toLocaleString()} rows`,
-        maps_updated.length ? `maps: ${maps_updated.join(', ')}` : '',
+        maps_updated.length  ? `maps: ${maps_updated.join(', ')}`   : '',
         dates_updated.length ? `dates: ${dates_updated.join(', ')}` : '',
       ].filter(Boolean).join(' \u00b7 ');
       if (files_failed > 0) {
@@ -751,122 +769,131 @@ function UploadPanel({ onUploadDone }: { onUploadDone?: () => void }) {
   };
 
   return (
-    <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 12 }}>
+    <div style={{ borderBottom: `1px solid ${BORDER}` }}>
+
+      {/* Trigger row — always visible */}
       <button
         onClick={() => setOpen((v) => !v)}
         style={{
-          width: '100%', background: 'none', border: `1px solid ${BORDER}`,
-          borderRadius: 6, color: TEXT_MUTED, cursor: 'pointer',
-          padding: '6px 10px', fontSize: 11, fontWeight: 600,
-          letterSpacing: '0.07em', textTransform: 'uppercase',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          transition: 'border-color 0.15s, color 0.15s',
+          width: '100%', background: open ? PANEL_BG : 'none', border: 'none',
+          color: open ? TEXT_MAIN : TEXT_MUTED, cursor: 'pointer',
+          padding: '9px 16px', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', gap: 8,
+          fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase',
+          transition: 'background 0.15s, color 0.15s',
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT; }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT_MUTED; }}
+        onMouseEnter={(e) => { if (!open) e.currentTarget.style.color = TEXT_MAIN; }}
+        onMouseLeave={(e) => { if (!open) e.currentTarget.style.color = TEXT_MUTED; }}
       >
-        <span>Upload new data</span>
-        <span style={{ fontSize: 14 }}>{open ? '\u25b2' : '\u25bc'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ fontSize: 13 }}>&#8679;</span>
+          <span>Upload Match Data</span>
+          {files.length > 0 && (
+            <span style={{
+              background: ACCENT, color: '#0f172a', borderRadius: 99,
+              fontSize: 9, fontWeight: 800, padding: '1px 6px', lineHeight: 1.6,
+            }}>
+              {files.length}
+            </span>
+          )}
+        </div>
+        <span style={{ fontSize: 10, opacity: 0.5 }}>{open ? '\u25b2' : '\u25bc'}</span>
       </button>
 
       {open && (
-        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 11, color: TEXT_MUTED, lineHeight: 1.6 }}>
-            Drop{' '}
-            <code style={{ color: ACCENT, fontSize: 10 }}>.nakama-0</code> files <em>or</em> an
-            entire folder onto the zone below, or use the buttons to browse.{' '}
-            <strong style={{ color: TEXT_MAIN }}>Dates are detected automatically</strong>{' '}
-            from the data \u2014 no manual input needed.
-          </div>
+        <div style={{
+          padding: '0 16px 14px', background: PANEL_BG,
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
 
+          <p style={{ fontSize: 11, color: TEXT_MUTED, lineHeight: 1.5, margin: '10px 0 0' }}>
+            Select one or more{' '}
+            <code style={{
+              color: ACCENT, fontSize: 10,
+              background: '#0f172a', padding: '1px 5px', borderRadius: 3,
+            }}>.nakama-0</code>{' '}
+            files. <strong style={{ color: TEXT_MAIN, fontWeight: 600 }}>Dates are auto-detected</strong> — no manual input needed.
+          </p>
+
+          {/* Drop zone */}
           <div
+            onClick={() => fileRef.current?.click()}
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              addFiles(Array.from(e.dataTransfer.files));
+            }}
             style={{
               border: `2px dashed ${dragging ? ACCENT : BORDER}`,
               borderRadius: 8, padding: '14px 10px', textAlign: 'center',
-              transition: 'border-color 0.15s',
-              background: dragging ? 'rgba(56,189,248,0.05)' : 'transparent',
+              cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s',
+              background: dragging ? 'rgba(56,189,248,0.06)' : 'transparent',
             }}
           >
             <div style={{ fontSize: 20, marginBottom: 4 }}>&#128193;</div>
             <div style={{ fontSize: 11, color: dragging ? ACCENT : TEXT_MUTED }}>
               {files.length > 0
-                ? `${files.length} file${files.length > 1 ? 's' : ''} queued \u2014 drop more files or a folder`
-                : 'Drag & drop files or a folder here'}
+                ? `${files.length} file${files.length > 1 ? 's' : ''} queued \u2014 click or drop to add more`
+                : 'Click or drag & drop files here'}
             </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              onClick={() => fileRef.current?.click()}
-              style={{
-                flex: 1, background: 'none', border: `1px solid ${BORDER}`,
-                borderRadius: 6, color: TEXT_MUTED, cursor: 'pointer',
-                padding: '5px 8px', fontSize: 11, fontWeight: 600,
-                transition: 'border-color 0.15s, color 0.15s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT_MUTED; }}
-            >
-              Select Files
-            </button>
-            <button
-              onClick={() => folderRef.current?.click()}
-              style={{
-                flex: 1, background: 'none', border: `1px solid ${BORDER}`,
-                borderRadius: 6, color: TEXT_MUTED, cursor: 'pointer',
-                padding: '5px 8px', fontSize: 11, fontWeight: 600,
-                transition: 'border-color 0.15s, color 0.15s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT_MUTED; }}
-            >
-              Select Folder
-            </button>
           </div>
 
           <input
             ref={fileRef}
             type="file"
             multiple
+            accept=".nakama-0"
             style={{ display: 'none' }}
-            onChange={(e) => addFiles(Array.from(e.target.files ?? []))}
-          />
-          <input
-            ref={folderRef}
-            type="file"
-            multiple
-            style={{ display: 'none' }}
-            // @ts-ignore – webkitdirectory is not in React's typings but is widely supported
-            webkitdirectory=""
             onChange={(e) => addFiles(Array.from(e.target.files ?? []))}
           />
 
+          {/* Duplicate warning */}
+          {dupeWarn.length > 0 && (
+            <div style={{
+              fontSize: 11, color: '#fbbf24', lineHeight: 1.5,
+              padding: '5px 8px', borderRadius: 4,
+              background: 'rgba(251,191,36,0.08)',
+              border: '1px solid rgba(251,191,36,0.25)',
+            }}>
+              Already queued: {dupeWarn.join(', ')}
+            </div>
+          )}
+
+          {/* Queued file list */}
           {files.length > 0 && (
             <div style={{
-              maxHeight: 120, overflowY: 'auto',
+              maxHeight: 110, overflowY: 'auto',
               background: '#0f172a', borderRadius: 6,
-              border: `1px solid ${BORDER}`, padding: '4px 0',
+              border: `1px solid ${BORDER}`,
             }}>
-              {files.map((f) => (
-                <div key={f.name} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '3px 8px', fontSize: 10, color: TEXT_MUTED,
-                }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
+              {files.map((f, i) => (
+                <div
+                  key={f.name}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '4px 8px', fontSize: 10, color: TEXT_MUTED,
+                    borderBottom: i < files.length - 1 ? `1px solid ${BORDER}` : 'none',
+                  }}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '84%' }}>
                     {f.name}
                   </span>
                   <button
                     onClick={(e) => { e.stopPropagation(); removeFile(f.name); }}
-                    style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: 12, padding: '0 2px' }}
+                    style={{
+                      background: 'none', border: 'none',
+                      color: '#f87171', cursor: 'pointer',
+                      fontSize: 13, padding: '0 2px', lineHeight: 1,
+                    }}
                   >&#x2715;</button>
                 </div>
               ))}
             </div>
           )}
 
+          {/* Upload button */}
           <button
             disabled={!canUpload}
             onClick={handleUpload}
@@ -874,16 +901,18 @@ function UploadPanel({ onUploadDone }: { onUploadDone?: () => void }) {
               background: canUpload ? ACCENT : BORDER,
               color: canUpload ? '#0f172a' : TEXT_MUTED,
               border: 'none', borderRadius: 6,
-              padding: '7px 12px', fontSize: 12, fontWeight: 700,
+              padding: '8px 12px', fontSize: 12, fontWeight: 700,
               cursor: canUpload ? 'pointer' : 'not-allowed',
               transition: 'background 0.15s',
+              letterSpacing: '0.02em',
             }}
           >
             {status === 'uploading'
-              ? `Processing ${files.length} file${files.length > 1 ? 's' : ''}...`
+              ? `Processing ${files.length} file${files.length > 1 ? 's' : ''}…`
               : `Upload & Process${files.length > 0 ? ` (${files.length})` : ''}`}
           </button>
 
+          {/* Status message */}
           {message && (
             <div style={{
               fontSize: 11, color: statusColor[status],
@@ -891,9 +920,12 @@ function UploadPanel({ onUploadDone }: { onUploadDone?: () => void }) {
               background: '#0f172a', border: `1px solid ${BORDER}`,
               lineHeight: 1.6, whiteSpace: 'pre-wrap',
             }}>
-              {status === 'done' && '\u2713 '}{status === 'error' && '\u2717 '}{message}
+              {status === 'done'  && '\u2713 '}
+              {status === 'error' && '\u2717 '}
+              {message}
             </div>
           )}
+
         </div>
       )}
     </div>
