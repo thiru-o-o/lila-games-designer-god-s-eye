@@ -2,8 +2,8 @@
 
 A browser-native analytics platform for LILA BLACK level designers. Load five days of raw match telemetry, replay any match frame-by-frame, cross-overlay seven heatmap layers, trace multiple player paths simultaneously, identify kill-density hotspots, and save annotated moments for team review — all running entirely inside the browser with no analytics server.
 
-**Live demo:** _add your Vercel URL here_  
-**Repo:** `https://github.com/YOUR_USERNAME/YOUR_REPO`
+**Live demo:** https://lila-games-designer-god-s-eye.vercel.app/
+**Repo:** `https://github.com/thiru-o-o/lila-games-designer-god-s-eye/'
 
 ---
 
